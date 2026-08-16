@@ -244,10 +244,17 @@ app.get('/api/financials', async (req, res) => {
             if(instNum){fiiPct=instNum*0.55;diiPct=instNum*0.45;}
         }
         // Quarterly
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - 4); // ignore data older than 4 years
         const quarters=(result.incomeStatementHistoryQuarterly?.incomeStatementHistory||[]).slice(0,6).map((q,i)=>{
             const cf=(result.cashflowStatementHistoryQuarterly?.cashflowStatements||[])[i]||{};
             const gv=(o,k)=>{const v=o[k];if(!v&&v!==0)return null;return typeof v==='object'?(v.fmt??v.raw??null):v;};
-            return {period:gv(q,'endDate'),totalRevenue:gv(q,'totalRevenue'),grossProfit:gv(q,'grossProfit'),ebit:gv(q,'ebit'),netIncome:gv(q,'netIncome'),operatingIncome:gv(q,'operatingIncome'),operatingCashflow:gv(cf,'totalCashFromOperatingActivities')};
+            const period = gv(q,'endDate');
+            return {period,totalRevenue:gv(q,'totalRevenue'),grossProfit:gv(q,'grossProfit'),ebit:gv(q,'ebit'),netIncome:gv(q,'netIncome'),operatingIncome:gv(q,'operatingIncome'),operatingCashflow:gv(cf,'totalCashFromOperatingActivities')};
+        }).filter(q => {
+            if (!q.period) return false;
+            const d = new Date(q.period);
+            return !isNaN(d) && d >= cutoff;
         });
         const epsHistory=(result.earningsHistory?.history||[]).slice(0,8).map(e=>{
             const gv=(o,k)=>{const v=o[k];if(!v&&v!==0)return null;return typeof v==='object'?(v.fmt??v.raw??null):v;};
@@ -598,6 +605,76 @@ app.get('/api/logo/:symbol', async (req, res) => {
     LOGO_CACHE.set(symbol,{type:'image/svg+xml',data:svg});
     res.setHeader('Content-Type','image/svg+xml'); res.setHeader('Cache-Control','public,max-age=3600');
     res.send(svg);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   API: /api/screener-quarters — quarterly results from Screener.in
+═══════════════════════════════════════════════════════════ */
+const _screenerCache = new Map();
+
+app.get('/api/screener-quarters', async (req, res) => {
+    const { symbol } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+
+    const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
+    const cached = _screenerCache.get(base);
+    if (cached && Date.now() - cached.ts < 30 * 60 * 1000) return res.json(cached.data);
+
+    try {
+        const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+        // Step 1: search for company ID
+        const searchResp = await axios.get(
+            `https://www.screener.in/api/company/search/?q=${encodeURIComponent(base)}`,
+            { headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Referer': 'https://www.screener.in/' }, timeout: 8000 }
+        );
+        const results = searchResp.data || [];
+        if (!results.length) return res.status(404).json({ error: 'Company not found on Screener.in' });
+
+        const company = results[0];
+        const companyUrl = `https://www.screener.in${company.url}`;
+
+        // Step 2: fetch company page
+        const pageResp = await axios.get(companyUrl, {
+            headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Referer': 'https://www.screener.in/' },
+            timeout: 12000,
+            responseType: 'text',
+        });
+        const html = pageResp.data;
+
+        // Step 3: parse quarterly section
+        const sectionMatch = html.match(/id="quarters"[\s\S]*?<\/section>/);
+        if (!sectionMatch) return res.status(404).json({ error: 'Quarterly section not found' });
+        const section = sectionMatch[0];
+
+        // Extract quarter headers
+        const thMatches = [...section.matchAll(/<th[^>]*>(.*?)<\/th>/gs)];
+        const periods = thMatches
+            .map(m => m[1].replace(/<[^>]+>/g,'').trim())
+            .filter(h => /\d{4}/.test(h));
+
+        // Extract rows
+        const rowMatches = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)];
+        const rows = {};
+        const rowNames = ['Sales', 'Expenses', 'Operating Profit', 'OPM %', 'Other Income', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit', 'EPS'];
+
+        rowMatches.forEach(rm => {
+            const cells = [...rm[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+                .map(c => c[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').trim());
+            if (!cells.length) return;
+            const label = cells[0].replace(/[+\s]+$/,'').trim();
+            if (rowNames.some(n => label.includes(n))) {
+                rows[label] = cells.slice(1);
+            }
+        });
+
+        const data = { company: company.name, url: companyUrl, periods, rows };
+        _screenerCache.set(base, { data, ts: Date.now() });
+        res.json(data);
+    } catch(e) {
+        console.error('[Screener quarters]', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 /* ═══════════════════════════════════════════════════════════

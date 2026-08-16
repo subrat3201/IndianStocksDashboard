@@ -3428,6 +3428,9 @@ function switchModalTab(name, btn) {
   if (name === 'news' && _currentStock) {
     loadStockNews(_currentStock.symbol, _currentStock.name);
   }
+  if (name === 'quarterly' && _currentStock) {
+    loadScreenerQuarters(_currentStock.symbol);
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -4194,6 +4197,100 @@ function exportSectorCSV() {
 
 function renderSectorHeatmap() {}
 
+
+/* ═══════════════════════════════════════════════
+   SCREENER.IN QUARTERLY DATA
+═══════════════════════════════════════════════ */
+const _screenerQCache = {};
+
+async function loadScreenerQuarters(symbol) {
+  const el = document.getElementById('quarterlyContent');
+  if (!el) return;
+  const base = symbol.replace('.NS','').replace('.BO','');
+  if (_screenerQCache[base]) { renderScreenerQuarters(_screenerQCache[base]); return; }
+  el.innerHTML = '<div class="fin-loading"><div class="fin-spinner"></div><span>Fetching from Screener.in…</span></div>';
+  try {
+    const resp = await fetch('/api/screener-quarters?symbol=' + encodeURIComponent(symbol));
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    _screenerQCache[base] = data;
+    renderScreenerQuarters(data);
+  } catch(e) {
+    el.innerHTML = `<div class="fin-loading" style="color:var(--muted)">
+      <div style="font-size:24px;margin-bottom:8px">📊</div>
+      <div>Could not load quarterly data</div>
+      <div style="font-size:11px;margin-top:6px">
+        Try <a href="https://www.screener.in/company/${base}/" target="_blank" style="color:var(--accent)">Screener.in ↗</a>
+      </div>
+    </div>`;
+  }
+}
+
+function renderScreenerQuarters(data) {
+  const el = document.getElementById('quarterlyContent');
+  if (!el || !data) return;
+  const { periods = [], rows = {}, url } = data;
+  if (!periods.length) {
+    el.innerHTML = '<div class="fin-loading" style="color:var(--muted)">No quarterly data found</div>';
+    return;
+  }
+  const maxQ = Math.min(periods.length, 8);
+  const cols  = periods.slice(-maxQ);
+  const rowDefs = [
+    { key:'Sales',            label:'💰 Revenue (₹ Cr)',   cls:'up' },
+    { key:'Expenses',         label:'📤 Expenses (₹ Cr)',  cls:'' },
+    { key:'Operating Profit', label:'📊 Oper. Profit',     cls:'up' },
+    { key:'OPM %',            label:'📈 OPM %',            cls:'' },
+    { key:'Other Income',     label:'➕ Other Income',     cls:'' },
+    { key:'Net Profit',       label:'🏆 Net Profit (₹ Cr)',cls:'' },
+    { key:'EPS',              label:'💹 EPS (₹)',          cls:'' },
+  ];
+  const parseVal = s => { if(!s) return null; const n=parseFloat(s.replace(/,/g,'')); return isNaN(n)?null:n; };
+  const growthBadge = (curr, prev) => {
+    const c=parseVal(curr), p=parseVal(prev);
+    if(c==null||p==null||p===0) return '';
+    const pct=((c-p)/Math.abs(p)*100).toFixed(1);
+    const up=parseFloat(pct)>=0;
+    return `<span style="font-size:9px;font-weight:700;margin-left:3px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>`;
+  };
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;font-weight:700">📅 Quarterly Results — Last ${maxQ} Quarters</div>
+      <a href="${url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:20px">View on Screener.in ↗</a>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="qr-table">
+      <thead><tr>
+        <th style="min-width:150px;text-align:left">Metric</th>
+        ${cols.map(p=>`<th style="min-width:85px">${p}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${rowDefs.map(rd => {
+          const rowKey = Object.keys(rows).find(k=>k.includes(rd.key));
+          if (!rowKey) return '';
+          const vals = rows[rowKey];
+          return `<tr>
+            <td style="font-weight:600;text-align:left">${rd.label}</td>
+            ${cols.map((p,i) => {
+              const idx = periods.indexOf(p);
+              const val = vals?.[idx] ?? '—';
+              const num = parseVal(val);
+              let cls = rd.cls;
+              if (rd.key==='Net Profit' && num!=null) cls = num>=0?'up':'dn';
+              const prevIdx = i>0 ? periods.indexOf(cols[i-1]) : -1;
+              const prevVal = prevIdx>=0 ? vals?.[prevIdx] : null;
+              const gw = i>0 ? growthBadge(val, prevVal) : '';
+              return `<td class="${cls}" style="font-weight:${rd.key==='Net Profit'||rd.key==='Sales'?'700':'400'}">${val}${gw}</td>`;
+            }).join('')}
+          </tr>`;
+        }).filter(Boolean).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;padding:6px 10px;background:var(--surface2);border-radius:6px">
+      📌 Source: <a href="${url}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in</a> · Values in ₹ Crores
+    </div>`;
+}
 
 /* ═══════════════════════════════════════════════
    INIT
