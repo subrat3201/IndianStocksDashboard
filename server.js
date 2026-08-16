@@ -170,7 +170,7 @@ app.get('/api/indices', async (req, res) => {
 app.get('/api/history', async (req, res) => {
     const { symbol, range = '1mo' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
-    const intervalMap = { '5d': '15m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1wk', '2y': '1wk' };
+    const intervalMap = { '1d': '5m', '5d': '15m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1wk', '2y': '1wk' };
     try {
         const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${intervalMap[range]||'1d'}&range=${range}`;
         const resp = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }, timeout: 10000 });
