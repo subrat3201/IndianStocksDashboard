@@ -907,7 +907,7 @@
     </div>
     <!-- GIFT Nifty -->
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-width:110px;">
-      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">GIFT Nifty</div>
+      <div id="giftLabel" style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">GIFT Nifty</div>
       <div id="giftPrice" style="font-size:15px;font-weight:800;color:var(--text);">—</div>
       <div id="giftChg" style="font-size:11px;font-weight:600;color:var(--muted);">—</div>
     </div>
@@ -1635,15 +1635,19 @@ function startClock() {
 ═══════════════════════════════════════════════ */
 async function loadGiftNifty() {
   try {
-    const resp = await fetch('/api/stocks?symbols=^NSESGX');
-    const data = await resp.json();
-    const q = data?.results?.[0];
-    if (!q) return;
-    const chg  = q.changeP != null ? (q.changeP >= 0 ? '+' : '') + q.changeP.toFixed(2) + '%' : '—';
-    const color = q.changeP >= 0 ? 'var(--green)' : 'var(--red)';
-    document.getElementById('giftPrice').textContent = q.price ? '₹' + q.price.toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
-    document.getElementById('giftChg').textContent   = chg;
+    const resp = await fetch('/api/gift-nifty');
+    const q = await resp.json();
+    if (!q || q.error) return;
+    const price  = q.price != null ? '₹' + Number(q.price).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
+    const chgPct = q.changeP != null ? (q.changeP >= 0 ? '+' : '') + Number(q.changeP).toFixed(2) + '%' : '—';
+    const chgAbs = q.change  != null ? (q.change  >= 0 ? '+' : '') + Number(q.change).toFixed(2)  : '';
+    const color  = (q.changeP >= 0) ? 'var(--green)' : 'var(--red)';
+    document.getElementById('giftPrice').textContent = price;
+    document.getElementById('giftChg').textContent   = `${chgPct} (${chgAbs})`;
     document.getElementById('giftChg').style.color   = color;
+    if (q.isProxy) {
+      document.getElementById('giftLabel').textContent = 'GIFT Nifty*';
+    }
   } catch(e) { /* silent */ }
 }
 

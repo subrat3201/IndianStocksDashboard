@@ -601,6 +601,78 @@ app.get('/api/logo/:symbol', async (req, res) => {
 });
 
 /* ═══════════════════════════════════════════════════════════
+   API: /api/gift-nifty — GIFT Nifty latest price via NSE India
+═══════════════════════════════════════════════════════════ */
+let _giftCache = null, _giftCacheTime = 0;
+
+app.get('/api/gift-nifty', async (req, res) => {
+    try {
+        // Use cached value if < 60s old
+        if (_giftCache && Date.now() - _giftCacheTime < 60000) {
+            return res.json(_giftCache);
+        }
+
+        const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+        // Step 1: get cookies from NSE homepage
+        const home = await axios.get('https://www.nseindia.com/', {
+            headers: { 'User-Agent': UA, 'Accept': 'text/html' },
+            timeout: 10000,
+        });
+        const cookies = (home.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+
+        // Step 2: fetch allIndices which includes GIFT Nifty
+        const resp = await axios.get('https://www.nseindia.com/api/allIndices', {
+            headers: {
+                'User-Agent': UA,
+                'Accept': 'application/json',
+                'Referer': 'https://www.nseindia.com/',
+                'Cookie': cookies,
+            },
+            timeout: 10000,
+        });
+
+        const indices = resp.data?.data || [];
+        const gift = indices.find(i => i.index && i.index.toUpperCase().includes('GIFT'));
+
+        if (gift) {
+            const result = {
+                price:     gift.last,
+                prevClose: gift.previousClose,
+                change:    gift.variation,
+                changeP:   gift.percentChange,
+                high:      gift.high,
+                low:       gift.low,
+                source:    'NSE India',
+            };
+            _giftCache = result;
+            _giftCacheTime = Date.now();
+            return res.json(result);
+        }
+
+        // Fallback: use Nifty 50 spot as proxy
+        const nifty = indices.find(i => i.index === 'NIFTY 50');
+        if (nifty) {
+            return res.json({
+                price:     nifty.last,
+                prevClose: nifty.previousClose,
+                change:    nifty.variation,
+                changeP:   nifty.percentChange,
+                high:      nifty.high,
+                low:       nifty.low,
+                source:    'Nifty 50 (proxy)',
+                isProxy:   true,
+            });
+        }
+
+        res.status(404).json({ error: 'GIFT Nifty data not available' });
+    } catch (e) {
+        console.error('[GIFT Nifty]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════
    START SERVER
 ═══════════════════════════════════════════════════════════ */
 http.createServer({ maxHeaderSize: 32768 }, app).listen(PORT, '0.0.0.0', () => {
