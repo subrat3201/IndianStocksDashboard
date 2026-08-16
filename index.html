@@ -3551,19 +3551,34 @@ function renderFinancials(d) {
   setOM('om-price', stock ? '₹' + fmt(stock.price) : '—');
   setOM('om-hl',    stock ? '₹' + fmt(stock.high52) + ' / ₹' + fmt(stock.low52) : '—');
 
-  // Financial metrics
-  setOM('om-mktcap', d.marketCap     || '—');
-  setOM('om-pe',     d.trailingPE    || '—');
-  setOM('om-bv',     d.bookValue     ? '₹' + fmtFin(d.bookValue) : '—');
-  setOM('om-dy',     d.dividendYield || '—', d.dividendYield ? 'up' : '');
-  setOM('om-roce',   d.returnOnAssets  ? pctStr(d.returnOnAssets) : '—');   // ROCE proxy
-  setOM('om-roe',    d.returnOnEquity  ? pctStr(d.returnOnEquity) : '—');
-  setOM('om-eps',    d.trailingEps     ? '₹' + fmtFin(d.trailingEps) : '—');
-  setOM('om-pm',     d.profitMargins   ? pctStr(d.profitMargins)  : '—',  d.profitMargins > 0 ? 'up' : '');
-  setOM('om-rg',     d.revenueGrowth   ? pctStr(d.revenueGrowth)  : '—',  d.revenueGrowth > 0 ? 'up' : 'dn');
-  setOM('om-de',     d.debtToEquity    ? fmtFin(d.debtToEquity)   : '—');
+  // Financial metrics — prefer Yahoo, fall back to Screener ratios
+  const r = d._screenerRatios || {};
+  const screenerUrl = d._screenerUrl || '';
+
+  setOM('om-mktcap', d.marketCap   || (r['Market Cap']   ? r['Market Cap'] + ' Cr' : '—'));
+  setOM('om-pe',     d.trailingPE  || r['Stock P/E']     || '—');
+  setOM('om-bv',     d.bookValue   ? '₹' + fmtFin(d.bookValue) : (r['Book Value'] ? '₹' + r['Book Value'] : '—'));
+  setOM('om-dy',     d.dividendYield || (r['Dividend Yield'] ? r['Dividend Yield'] + '%' : '—'), (d.dividendYield || r['Dividend Yield']) ? 'up' : '');
+  setOM('om-roce',   d.returnOnAssets ? pctStr(d.returnOnAssets) : (r['ROCE']  ? r['ROCE']  + '%' : '—'));
+  setOM('om-roe',    d.returnOnEquity ? pctStr(d.returnOnEquity) : (r['ROE']   ? r['ROE']   + '%' : '—'));
+  setOM('om-eps',    d.trailingEps    ? '₹' + fmtFin(d.trailingEps) : (r['EPS (TTM)'] ? '₹' + r['EPS (TTM)'] : '—'));
+  setOM('om-pm',     d.profitMargins  ? pctStr(d.profitMargins)  : '—', d.profitMargins > 0 ? 'up' : '');
+  setOM('om-rg',     d.revenueGrowth  ? pctStr(d.revenueGrowth)  : '—', d.revenueGrowth > 0 ? 'up' : 'dn');
+  setOM('om-de',     d.debtToEquity   ? fmtFin(d.debtToEquity)   : '—');
 
   document.getElementById('om-loading').style.display = 'none';
+
+  // Show Screener link if available
+  if (screenerUrl) {
+    let linkEl = document.getElementById('om-screener-link');
+    if (!linkEl) {
+      linkEl = document.createElement('div');
+      linkEl.id = 'om-screener-link';
+      linkEl.style.cssText = 'margin-top:8px;font-size:11px;color:var(--muted)';
+      document.getElementById('overviewMetrics')?.appendChild(linkEl);
+    }
+    linkEl.innerHTML = `📌 Key ratios from <a href="${screenerUrl}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in ↗</a>`;
+  }
 
   // About section
   if (d.description || d.sector || d.industry) {

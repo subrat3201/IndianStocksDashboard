@@ -667,11 +667,28 @@ async function scrapeScreener(base) {
     const quarters     = parseTable(quartersSection);
     const shareholding = parseTable(shareholdingSection);
 
+    // ── Parse key ratios from top-ratios ──
+    const ratios = {};
+    const ratioSection = html.match(/id="top-ratios"[\s\S]*?<\/ul>/);
+    if (ratioSection) {
+        const items = [...ratioSection[0].matchAll(/<li[\s\S]*?<\/li>/g)];
+        items.forEach(item => {
+            const nameM = item[0].match(/class="name"[^>]*>([\s\S]*?)<\/span>/);
+            const nums  = [...item[0].matchAll(/class="number"[^>]*>([\s\S]*?)<\/span>/g)].map(m => m[1].replace(/<[^>]+>/g,'').trim());
+            const unitM = item[0].match(/class="nowrap value"[^>]*>([\s\S]*?)<\/span>/);
+            if (!nameM || !nums.length) return;
+            const name = nameM[1].replace(/<[^>]+>/g,'').trim();
+            const unit = unitM ? unitM[1].replace(/<[^>]+>/g,'').replace(/[₹\s]/g,'').trim() : '';
+            ratios[name] = nums.length === 2 ? `${nums[0]} / ${nums[1]}` : nums[0] + (unit && !unit.includes(nums[0]) ? ' ' + unit.replace(nums[0],'').trim() : '');
+        });
+    }
+
     const data = {
         company: company.name,
         url: companyUrl,
         quarters,
         shareholding,
+        ratios,
     };
     _screenerCache.set(base, { data, ts: Date.now() });
     return data;
@@ -699,6 +716,19 @@ app.get('/api/screener-shareholding', async (req, res) => {
         res.json({ company: data.company, url: data.url, ...data.shareholding });
     } catch(e) {
         console.error('[Screener shareholding]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/screener-ratios', async (req, res) => {
+    const { symbol } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
+    try {
+        const data = await scrapeScreener(base);
+        res.json({ company: data.company, url: data.url, ratios: data.ratios || {} });
+    } catch(e) {
+        console.error('[Screener ratios]', e.message);
         res.status(500).json({ error: e.message });
     }
 });
