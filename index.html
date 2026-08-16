@@ -1230,9 +1230,25 @@
 
   <!-- Search Results Banner (shown when searching) -->
   <div class="card full" id="searchBanner" style="display:none">
-    <div class="card-head" style="background:var(--blue-dim,#1a2a3a)">
+    <div class="card-head" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(139,92,246,.1))">
       <div class="card-title" style="color:var(--accent)">🔍 Search Results <span class="badge" id="acnt">—</span></div>
-      <button onclick="clearSearch()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:var(--radius);cursor:pointer;font-size:12px">✕ Clear search</button>
+      <button onclick="clearSearch()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px">✕ Clear</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Company</th>
+            <th>Price ₹</th>
+            <th>Change %</th>
+            <th>52W High ₹</th>
+            <th>52W Low ₹</th>
+            <th>Prev Close ₹</th>
+          </tr>
+        </thead>
+        <tbody id="tAll"><tr class="state-row"><td colspan="7">Search for a stock above…</td></tr></tbody>
+      </table>
     </div>
   </div>
 
@@ -1789,8 +1805,6 @@ function renderAll() {
   const searchBanner = document.getElementById('searchBanner');
   if (miniSections) miniSections.style.display = 'contents';
   if (searchBanner) searchBanner.style.display = 'none';
-  const allCardTitle = document.querySelector('#tAll')?.closest('.card')?.querySelector('.card-title');
-  if (allCardTitle) allCardTitle.innerHTML = `📋 All Tracked Stocks <span class="badge" id="acnt">${list.length}</span>`;
 
   const sorted  = [...list].sort((a,b) => b.changeP - a.changeP);
   const gainers = sorted.filter(d => d.changeP > 0).slice(0,15);
@@ -1810,13 +1824,11 @@ function renderAll() {
   document.getElementById('lcnt').textContent  = losers.length;
   document.getElementById('hcnt').textContent  = near52H.length;
   document.getElementById('locnt').textContent = near52L.length;
-  document.getElementById('acnt').textContent  = list.length;
 
   renderGainers(gainers);
   renderLosers(losers);
   renderHigh(near52H);
   renderLow(near52L);
-  renderAllTable(sorted);
 }
 
 /* ── Gainers ── */
@@ -1969,8 +1981,9 @@ function noData(cols) {
   return `<tr class="state-row"><td colspan="${cols}">No data available</td></tr>`;
 }
 function setError(msg) {
-  ['tGainers','tLosers','tHigh','tLow','tAll'].forEach(id => {
-    document.getElementById(id).innerHTML =
+  ['tGainers','tLosers','tHigh','tLow'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML =
       `<tr class="state-row"><td colspan="6" class="err">⚠ ${msg}</td></tr>`;
   });
 }
@@ -3031,14 +3044,12 @@ function renderSearchResults(results) {
 function showSearchMode(active) {
   const miniSections = document.getElementById('miniSections');
   const searchBanner = document.getElementById('searchBanner');
-  const allCardTitle = document.querySelector('#tAll')?.closest('.card')?.querySelector('.card-title');
   if (active) {
     if (miniSections) miniSections.style.display = 'none';
     if (searchBanner) searchBanner.style.display = '';
   } else {
     if (miniSections) miniSections.style.display = 'contents';
     if (searchBanner) searchBanner.style.display = 'none';
-    if (allCardTitle) allCardTitle.innerHTML = `📋 All Tracked Stocks <span class="badge" id="acnt">${allData.length}</span>`;
   }
 }
 
