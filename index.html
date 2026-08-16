@@ -3725,7 +3725,11 @@ function switchModalTab(name, btn) {
   if (name === 'news' && _currentStock) {
     loadStockNews(_currentStock.symbol, _currentStock.name);
   }
-  if (name === 'quarterly' && _currentStock) {
+  if (name === 'analysis' && _currentStock) {
+    // Re-render returns if finCache already loaded
+    const cached = _finCache[_currentStock.symbol];
+    if (cached) loadPriceReturns(_currentStock.symbol, _currentStock.price);
+  }
     loadScreenerQuarters(_currentStock.symbol);
   }
   if (name === 'shareholding' && _currentStock) {
@@ -4266,6 +4270,17 @@ function renderFinancials(d) {
   const recLbl = recLabel(d.recommendationKey);
 
   anaEl.innerHTML = `
+    <!-- Price Returns section — filled async after history fetch -->
+    <div id="priceReturnsSection">
+      <div class="fin-section-title" style="grid-column:1/-1;margin-bottom:10px">📊 Share Price Returns</div>
+      <div id="priceReturnsGrid" style="display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">
+          <div class="fin-spinner" style="margin:0 auto 8px"></div>
+          Computing returns…
+        </div>
+      </div>
+    </div>
+
     <div class="fin-grid">
       <div class="fin-section-title">Analyst Consensus</div>
       <div class="fin-row" style="grid-column:1/-1;justify-content:center;padding:16px">
@@ -4289,6 +4304,9 @@ function renderFinancials(d) {
       ${d.averageVolume ? finRow('Avg Volume', Number(d.averageVolume).toLocaleString('en-IN')) : ''}
       ${stock ? finRow('Current Volume', Number(stock.volume||0).toLocaleString('en-IN')) : ''}
     </div>`;
+
+  // Fetch 1Y history to compute all returns
+  if (stock) loadPriceReturns(stock.symbol, stock.price);
 }
 
 /* ═══════════════════════════════════════════════
@@ -4530,7 +4548,93 @@ function renderSectorHeatmap() {}
 
 
 /* ═══════════════════════════════════════════════
-   SCREENER.IN QUARTERLY + SHAREHOLDING DATA
+   PRICE RETURNS — computed from Yahoo history
+═══════════════════════════════════════════════ */
+const _returnsCache = {};
+
+async function loadPriceReturns(symbol, currentPrice) {
+  const el = document.getElementById('priceReturnsGrid');
+  if (!el) return;
+
+  if (_returnsCache[symbol]) {
+    renderPriceReturns(_returnsCache[symbol], currentPrice, symbol);
+    return;
+  }
+
+  try {
+    // Fetch 2Y daily history — enough for all return periods
+    const resp  = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&range=2y`);
+    const json  = await resp.json();
+    const candles = json.candles || [];
+    if (!candles.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">No history data available</div>'; return; }
+
+    _returnsCache[symbol] = candles;
+    renderPriceReturns(candles, currentPrice, symbol);
+  } catch(e) {
+    el.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Could not load return data</div>`;
+  }
+}
+
+function renderPriceReturns(candles, currentPrice, symbol) {
+  const el = document.getElementById('priceReturnsGrid');
+  if (!el || !candles.length) return;
+
+  const now   = Date.now();
+  const price = currentPrice || candles[candles.length - 1].c;
+
+  // Find close price N days ago
+  const priceAgo = (days) => {
+    const target = now - days * 24 * 60 * 60 * 1000;
+    // Find the candle closest to (but before) target date
+    let best = candles[0];
+    for (const c of candles) {
+      if (c.t <= target) best = c;
+      else break;
+    }
+    return best.c;
+  };
+
+  const ret = (days) => {
+    const old = priceAgo(days);
+    if (!old) return null;
+    return ((price - old) / old) * 100;
+  };
+
+  const periods = [
+    { label: '1 Day',    days: 1   },
+    { label: '1 Week',   days: 7   },
+    { label: '1 Month',  days: 30  },
+    { label: '3 Months', days: 91  },
+    { label: '6 Months', days: 182 },
+    { label: '1 Year',   days: 365 },
+  ];
+
+  const companyName = _currentStock?.name || symbol.replace('.NS','').replace('.BO','');
+
+  el.innerHTML = `
+    <div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text)">${companyName} Share Price Returns</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">Based on historical daily closing prices</div>
+    </div>
+    ${periods.map((p, i) => {
+      const r   = ret(p.days);
+      const up  = r != null && r >= 0;
+      const na  = r == null || (p.days > candles.length);
+      const val = na ? 'N.A.' : (up ? '+' : '') + r.toFixed(2) + '%';
+      const col = na ? 'var(--muted)' : up ? 'var(--green)' : 'var(--red)';
+      const arrow = na ? '' : up ? '↑ ' : '↓ ';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;
+                padding:14px 16px;border-bottom:${i < periods.length-1 ? '1px solid var(--border)' : 'none'};
+                transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <span style="font-size:14px;color:var(--text)">${p.label}</span>
+        <span style="font-size:16px;font-weight:700;color:${col}">${arrow}${val}</span>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
 ═══════════════════════════════════════════════ */
 const _screenerQCache = {};
 
