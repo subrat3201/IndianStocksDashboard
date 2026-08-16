@@ -1745,17 +1745,22 @@ async function loadAll() {
 
     setProgress(35);
 
-    // Step 2: fetch live prices in parallel chunks of 50
-    const symbols = metaList.map(m => m.s);
-    const CHUNK   = 50;
+    // Step 2: fetch live prices — limit to top 500 stocks to avoid overloading
+    const symbols = metaList.slice(0, 500).map(m => m.s);
+    const CHUNK   = 30;
+    const CONCURRENCY = 5;  // max parallel requests at once
     const chunks  = [];
     for (let i = 0; i < symbols.length; i += CHUNK)
       chunks.push(symbols.slice(i, i + CHUNK));
 
-    // Fire all chunks in parallel
-    const settled = await Promise.allSettled(chunks.map(c => fetchBatch(c)));
+    // Fire in controlled concurrency batches
     const rawResults = [];
-    settled.forEach(r => { if (r.status === 'fulfilled') rawResults.push(...r.value); });
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const batch = chunks.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(batch.map(c => fetchBatch(c)));
+      settled.forEach(r => { if (r.status === 'fulfilled') rawResults.push(...r.value); });
+      setProgress(35 + Math.round(((i + CONCURRENCY) / chunks.length) * 55));
+    }
 
     setProgress(90);
 
@@ -3458,11 +3463,35 @@ async function loadFinancials(symbol) {
   anaEl.innerHTML = spinner;
 
   try {
-    const resp = await fetch('/api/financials?symbol=' + encodeURIComponent(symbol));
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    _finCache[symbol] = data;
-    renderFinancials(data);
+    // Fire Yahoo Finance + Screener ratios in parallel
+    const [yahooResp, screenerResp] = await Promise.allSettled([
+      fetch('/api/financials?symbol=' + encodeURIComponent(symbol)).then(r => r.json()),
+      fetch('/api/screener-ratios?symbol=' + encodeURIComponent(symbol)).then(r => r.json()),
+    ]);
+
+    const yahooData    = yahooResp.status    === 'fulfilled' ? yahooResp.value    : {};
+    const screenerData = screenerResp.status === 'fulfilled' ? screenerResp.value : {};
+
+    if (yahooData.error && !screenerData.ratios) throw new Error(yahooData.error || 'No data');
+
+    // Merge: prefer Yahoo for numbers, fill gaps with Screener
+    const ratios = screenerData.ratios || {};
+    const merged = {
+      ...yahooData,
+      _screenerRatios: ratios,
+      _screenerUrl: screenerData.url,
+    };
+
+    // Fill missing overview fields from Screener ratios
+    if (!merged.marketCap   && ratios['Market Cap'])    merged.marketCap    = ratios['Market Cap'];
+    if (!merged.trailingPE  && ratios['Stock P/E'])     merged.trailingPE   = ratios['Stock P/E'];
+    if (!merged.bookValue   && ratios['Book Value'])    merged.bookValue    = ratios['Book Value'];
+    if (!merged.dividendYield && ratios['Dividend Yield']) merged.dividendYield = ratios['Dividend Yield'] + '%';
+    if (!merged.returnOnEquity && ratios['ROE'])         merged.returnOnEquity = ratios['ROE'];
+    if (!merged.returnOnAssets && ratios['ROCE'])        merged.returnOnAssets = ratios['ROCE'];
+
+    _finCache[symbol] = merged;
+    renderFinancials(merged);
   } catch(e) {
     const err = `<div class="fin-loading" style="color:var(--muted)">⚠ Could not load financial data<br><small>${e.message}</small></div>`;
     finEl.innerHTML = err;
