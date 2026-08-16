@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Indian Stock Market Dashboard By Subrat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -363,7 +366,143 @@
     .sh-bar-fill { height: 100%; border-radius: 2px; }
     .sh-note    { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
-    /* ── Scrollbar ── */
+    /* ══════════════════════════════════════════
+       MOBILE RESPONSIVE — max-width: 768px
+    ══════════════════════════════════════════ */
+    @media (max-width: 768px) {
+
+      /* Header — stack vertically on small screens */
+      .header {
+        padding: 10px 14px;
+        gap: 8px;
+      }
+      .header h1 { font-size: 14px; }
+      .header-left { gap: 8px; }
+      .header-right {
+        width: 100%; justify-content: space-between; gap: 8px;
+      }
+      /* Hide clock date on mobile, keep time */
+      #liveDate { display: none; }
+      #liveClock { font-size: 13px; }
+      /* Compact GIFT Nifty widget */
+      #giftPrice { font-size: 13px; }
+      #giftChg   { font-size: 10px; }
+      .last-update { font-size: 10px; }
+
+      /* Controls — scrollable horizontal strip */
+      .controls {
+        padding: 8px 12px;
+        gap: 6px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .controls::-webkit-scrollbar { display: none; }
+      .controls > * { flex-shrink: 0; }
+      .btn-group button { padding: 5px 10px; font-size: 11px; }
+      .refresh-btn, .screener-btn, .watchlist-btn, .alerts-btn, .export-btn, .theme-btn {
+        padding: 5px 10px; font-size: 11px;
+      }
+      .auto-label { font-size: 11px; }
+      .watchlist-btn { margin-left: 0; }
+
+      /* Search bar — full width */
+      .search-wrap { padding: 8px 12px; }
+      .search-wrap-inner { max-width: 100%; }
+      .search-input { max-width: 100%; font-size: 14px; padding: 10px 14px 10px 36px; }
+
+      /* Index bar — smaller cards */
+      .indices-bar-wrap { padding: 0 30px; }
+      .index-card { padding: 8px 14px; min-width: 120px; }
+      .index-price { font-size: 14px; }
+      .index-chg   { font-size: 10px; }
+
+      /* Main grid — single column */
+      .main { padding: 12px 12px 24px; gap: 12px; grid-template-columns: 1fr; }
+
+      /* Tables — smaller padding, hide less important cols */
+      td, thead th { padding: 8px 10px; font-size: 12px; }
+      .sname { font-size: 12px; }
+      .ssym  { font-size: 10px; }
+      /* Hide 52W High/Low columns on mobile to save space */
+      table thead th:nth-child(5),
+      table thead th:nth-child(6),
+      table tbody td:nth-child(5),
+      table tbody td:nth-child(6) { display: none; }
+
+      /* Modal — full screen on mobile */
+      .modal-overlay { padding: 0; align-items: flex-end; }
+      .modal {
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 16px 16px 0 0;
+        transform: translateY(100%);
+      }
+      .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+      .modal-header { padding: 14px 16px 12px; }
+      .modal-company { font-size: 16px; }
+      .modal-body { padding: 14px 16px; gap: 14px; }
+      .price-big { font-size: 28px; }
+      .price-chg { font-size: 14px; }
+
+      /* Modal tabs — scrollable */
+      .modal-tabs { padding: 0 16px; margin: 0 -16px; }
+      .modal-tab  { padding: 8px 10px; font-size: 11px; }
+
+      /* Overview metrics — 2 col on mobile */
+      .overview-metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .om-box:nth-child(3n)   { border-right: 1px solid var(--border); }
+      .om-box:nth-child(2n)   { border-right: none; }
+
+      /* Heatmap grid */
+      .heatmap-grid { grid-template-columns: repeat(2, 1fr); padding: 12px; gap: 8px; }
+
+      /* News grid — single column */
+      .news-grid { grid-template-columns: 1fr; padding: 0 12px 16px; }
+
+      /* Sector chips */
+      .sector-browse { padding: 12px 14px; }
+      .sector-stock-panel { padding: 0 14px 16px; }
+      .sector-stocks-grid { grid-template-columns: 1fr; }
+
+      /* Screener grid */
+      .screener-grid { padding: 12px 14px; grid-template-columns: 1fr; }
+      .screener-disclaimer { margin: 0 14px; }
+
+      /* Panels padding */
+      #heatmapPanel > div:first-child { padding: 12px 14px 4px; }
+      #newsPanel > div:first-child    { padding: 12px 14px 8px; }
+
+      /* Footer */
+      footer { padding: 14px; font-size: 10px; }
+    }
+
+    /* Extra small — max 480px */
+    @media (max-width: 480px) {
+      .header h1 { font-size: 13px; }
+      /* Completely hide GIFT Nifty widget on tiny screens */
+      #giftPrice, #giftLabel, #giftChg { font-size: 11px; }
+      /* Watchlist panel */
+      #watchlistPanel { padding: 0; }
+      /* Stat grid 2 col */
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      /* Fin grid 1 col */
+      .fin-grid { grid-template-columns: 1fr; }
+      /* Chart height smaller */
+      .chart-canvas-wrap { height: 200px; }
+      /* Modal price */
+      .price-big { font-size: 24px; }
+    }
+
+    /* Touch — larger tap targets */
+    @media (hover: none) and (pointer: coarse) {
+      tbody tr.clickable { -webkit-tap-highlight-color: rgba(59,130,246,.15); }
+      .star-btn, .alert-btn { padding: 6px; font-size: 18px; }
+      .modal-tab { padding: 12px 10px; }
+      .btn-group button { padding: 8px 14px; }
+      .chart-canvas-wrap { cursor: default; }
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1828,6 +1967,21 @@ function scrollIdx(dir) {
   const bar = document.getElementById('indicesBar');
   bar.scrollBy({ left: dir * 320, behavior: 'smooth' });
 }
+
+// Touch swipe for index bar
+(function() {
+  let _tx = 0;
+  const bar = () => document.getElementById('indicesBar');
+  document.addEventListener('DOMContentLoaded', () => {
+    const b = bar();
+    if (!b) return;
+    b.addEventListener('touchstart', e => { _tx = e.touches[0].clientX; }, { passive: true });
+    b.addEventListener('touchend',   e => {
+      const dx = _tx - e.changedTouches[0].clientX;
+      if (Math.abs(dx) > 30) b.scrollBy({ left: dx * 2, behavior: 'smooth' });
+    }, { passive: true });
+  });
+})();
 
 /* ═══════════════════════════════════════════════
    RENDER ALL SECTIONS
