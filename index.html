@@ -1292,29 +1292,6 @@
 
   </div><!-- end #miniSections -->
 
-  <!-- All Stocks -->
-  <div class="card full">
-    <div class="card-head">
-      <div class="card-title">📋 All Tracked Stocks <span class="badge" id="acnt">—</span></div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            <th>Company</th>
-            <th>Price ₹</th>
-            <th>Change %</th>
-            <th>52W High ₹</th>
-            <th>52W Low ₹</th>
-            <th>Prev Close ₹</th>
-          </tr>
-        </thead>
-        <tbody id="tAll"><tr class="state-row"><td colspan="7">Loading…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
 </div>
 
 <footer>
@@ -1508,9 +1485,91 @@
 /* ═══════════════════════════════════════════════
    STOCK UNIVERSE
 ═══════════════════════════════════════════════ */
-const NSE = [].map(o => ({...o, ex:'NSE'}));
+const NSE = [
+  {s:'RELIANCE.NS',  n:'Reliance Industries'},
+  {s:'TCS.NS',       n:'TCS'},
+  {s:'HDFCBANK.NS',  n:'HDFC Bank'},
+  {s:'INFY.NS',      n:'Infosys'},
+  {s:'ICICIBANK.NS', n:'ICICI Bank'},
+  {s:'HINDUNILVR.NS',n:'Hindustan Unilever'},
+  {s:'ITC.NS',       n:'ITC Limited'},
+  {s:'SBIN.NS',      n:'SBI'},
+  {s:'BHARTIARTL.NS',n:'Bharti Airtel'},
+  {s:'KOTAKBANK.NS', n:'Kotak Mahindra Bank'},
+  {s:'AXISBANK.NS',  n:'Axis Bank'},
+  {s:'LT.NS',        n:'Larsen & Toubro'},
+  {s:'WIPRO.NS',     n:'Wipro'},
+  {s:'HCLTECH.NS',   n:'HCL Technologies'},
+  {s:'ASIANPAINT.NS',n:'Asian Paints'},
+  {s:'MARUTI.NS',    n:'Maruti Suzuki'},
+  {s:'SUNPHARMA.NS', n:'Sun Pharma'},
+  {s:'TITAN.NS',     n:'Titan Company'},
+  {s:'ULTRACEMCO.NS',n:'UltraTech Cement'},
+  {s:'BAJFINANCE.NS',n:'Bajaj Finance'},
+  {s:'NESTLEIND.NS', n:'Nestle India'},
+  {s:'POWERGRID.NS', n:'Power Grid Corp'},
+  {s:'NTPC.NS',      n:'NTPC'},
+  {s:'ONGC.NS',      n:'ONGC'},
+  {s:'M&M.NS',       n:'Mahindra & Mahindra'},
+  {s:'TECHM.NS',     n:'Tech Mahindra'},
+  {s:'DRREDDY.NS',   n:"Dr Reddy's Labs"},
+  {s:'GRASIM.NS',    n:'Grasim Industries'},
+  {s:'ADANIENT.NS',  n:'Adani Enterprises'},
+  {s:'ADANIPORTS.NS',n:'Adani Ports'},
+  {s:'CIPLA.NS',     n:'Cipla'},
+  {s:'BAJAJFINSV.NS',n:'Bajaj Finserv'},
+  {s:'COALINDIA.NS', n:'Coal India'},
+  {s:'BPCL.NS',      n:'BPCL'},
+  {s:'DIVISLAB.NS',  n:"Divi's Labs"},
+  {s:'EICHERMOT.NS', n:'Eicher Motors'},
+  {s:'HEROMOTOCO.NS',n:'Hero MotoCorp'},
+  {s:'HINDALCO.NS',  n:'Hindalco Industries'},
+  {s:'INDUSINDBK.NS',n:'IndusInd Bank'},
+  {s:'JSWSTEEL.NS',  n:'JSW Steel'},
+  {s:'SBILIFE.NS',   n:'SBI Life Insurance'},
+  {s:'HDFCLIFE.NS',  n:'HDFC Life Insurance'},
+  {s:'APOLLOHOSP.NS',n:'Apollo Hospitals'},
+  {s:'TATACONSUM.NS',n:'Tata Consumer Products'},
+  {s:'TATAMOTORS.NS',n:'Tata Motors'},
+  {s:'TATASTEEL.NS', n:'Tata Steel'},
+  {s:'BRITANNIA.NS', n:'Britannia Industries'},
+  {s:'BAJAJ-AUTO.NS',n:'Bajaj Auto'},
+  {s:'UPL.NS',       n:'UPL Limited'},
+  {s:'SHREECEM.NS',  n:'Shree Cement'},
+].map(o => ({...o, ex:'NSE'}));
 
-const BSE = [].map(o => ({...o, ex:'BSE'}));
+const BSE = [
+  {s:'RELIANCE.BO',   n:'Reliance Industries'},
+  {s:'TCS.BO',        n:'TCS'},
+  {s:'HDFCBANK.BO',   n:'HDFC Bank'},
+  {s:'INFY.BO',       n:'Infosys'},
+  {s:'ICICIBANK.BO',  n:'ICICI Bank'},
+  {s:'HINDUNILVR.BO', n:'Hindustan Unilever'},
+  {s:'ITC.BO',        n:'ITC Limited'},
+  {s:'SBIN.BO',       n:'SBI'},
+  {s:'BHARTIARTL.BO', n:'Bharti Airtel'},
+  {s:'KOTAKBANK.BO',  n:'Kotak Mahindra Bank'},
+  {s:'AXISBANK.BO',   n:'Axis Bank'},
+  {s:'LT.BO',         n:'Larsen & Toubro'},
+  {s:'WIPRO.BO',      n:'Wipro'},
+  {s:'HCLTECH.BO',    n:'HCL Technologies'},
+  {s:'ASIANPAINT.BO', n:'Asian Paints'},
+  {s:'MARUTI.BO',     n:'Maruti Suzuki'},
+  {s:'SUNPHARMA.BO',  n:'Sun Pharma'},
+  {s:'TITAN.BO',      n:'Titan Company'},
+  {s:'ULTRACEMCO.BO', n:'UltraTech Cement'},
+  {s:'BAJFINANCE.BO', n:'Bajaj Finance'},
+  {s:'NESTLEIND.BO',  n:'Nestle India'},
+  {s:'POWERGRID.BO',  n:'Power Grid Corp'},
+  {s:'NTPC.BO',       n:'NTPC'},
+  {s:'ONGC.BO',       n:'ONGC'},
+  {s:'M&M.BO',        n:'Mahindra & Mahindra'},
+  {s:'TECHM.BO',      n:'Tech Mahindra'},
+  {s:'DRREDDY.BO',    n:"Dr Reddy's Labs"},
+  {s:'GRASIM.BO',     n:'Grasim Industries'},
+  {s:'ADANIENT.BO',   n:'Adani Enterprises'},
+  {s:'ADANIPORTS.BO', n:'Adani Ports'},
+].map(o => ({...o, ex:'BSE'}));
 
 const INDEX_META = [
   {s:'^NSEI',       n:'NIFTY 50'},
