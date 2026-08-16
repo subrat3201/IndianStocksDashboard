@@ -603,7 +603,7 @@ app.get('/api/logo/:symbol', async (req, res) => {
 /* ═══════════════════════════════════════════════════════════
    START SERVER
 ═══════════════════════════════════════════════════════════ */
-http.createServer({ maxHeaderSize: 32768 }, app).listen(PORT, () => {
+http.createServer({ maxHeaderSize: 32768 }, app).listen(PORT, '0.0.0.0', () => {
     console.log(`\n🇮🇳  Indian Stock Dashboard — by Subrat`);
     console.log(`📈  Running at http://localhost:${PORT}\n`);
 });
