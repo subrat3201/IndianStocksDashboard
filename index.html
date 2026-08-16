@@ -3762,6 +3762,7 @@ function switchModalTab(name, btn) {
     const cached = _finCache[_currentStock.symbol];
     if (cached) loadPriceReturns(_currentStock.symbol, _currentStock.price);
   }
+  if (name === 'quarterly' && _currentStock) {
     loadScreenerQuarters(_currentStock.symbol);
   }
   if (name === 'shareholding' && _currentStock) {
