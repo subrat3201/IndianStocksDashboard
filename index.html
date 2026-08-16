@@ -636,6 +636,17 @@
     }
     .chart-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .chart-tab:not(.active):hover { border-color: var(--muted); color: var(--text); }
+
+    /* Chart type dropdown */
+    .ctype-item {
+      padding: 10px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; gap: 10px; color: var(--text);
+      transition: background .15s; border-bottom: 1px solid var(--border);
+    }
+    .ctype-item:last-child { border-bottom: none; }
+    .ctype-item:hover { background: var(--surface2); }
+    .ctype-item.active { background: var(--accent); color: #fff; font-weight: 700; }
+    .ctype-icon { font-size: 14px; width: 20px; text-align: center; }
     .chart-canvas-wrap {
       background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 0; position: relative; height: 260px; overflow: hidden; cursor: crosshair;
@@ -1602,12 +1613,37 @@
       <div class="modal-tab-panel" id="tab-chart">
         <div class="chart-section">
           <div class="chart-label">Price History</div>
-          <div class="chart-tabs">
-            <button class="chart-tab active" data-range="1mo" onclick="loadChart(this)">1M</button>
-            <button class="chart-tab"        data-range="3mo" onclick="loadChart(this)">3M</button>
-            <button class="chart-tab"        data-range="6mo" onclick="loadChart(this)">6M</button>
-            <button class="chart-tab"        data-range="1y"  onclick="loadChart(this)">1Y</button>
-            <button class="chart-tab"        data-range="2y"  onclick="loadChart(this)">2Y</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-range="1mo" onclick="loadChart(this)">1M</button>
+              <button class="chart-tab"        data-range="3mo" onclick="loadChart(this)">3M</button>
+              <button class="chart-tab"        data-range="6mo" onclick="loadChart(this)">6M</button>
+              <button class="chart-tab"        data-range="1y"  onclick="loadChart(this)">1Y</button>
+              <button class="chart-tab"        data-range="2y"  onclick="loadChart(this)">2Y</button>
+            </div>
+            <!-- Chart type selector -->
+            <div style="position:relative">
+              <button id="chartTypeBtn"
+                onclick="toggleChartTypeMenu()"
+                style="background:var(--surface2);border:1px solid var(--border);color:var(--text);
+                       padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;
+                       display:flex;align-items:center;gap:6px;transition:all .2s">
+                <span id="chartTypeIcon">📈</span>
+                <span id="chartTypeName">Candles</span>
+                <span style="color:var(--muted);font-size:10px">▾</span>
+              </button>
+              <div id="chartTypeMenu"
+                style="display:none;position:absolute;right:0;top:calc(100% + 6px);
+                       background:var(--surface);border:1px solid var(--border);border-radius:10px;
+                       box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:50;min-width:180px;overflow:hidden">
+                <div class="ctype-item active" data-type="candles"        onclick="setChartType('candles','📊','Candles',this)">        <span class="ctype-icon">📊</span> Candles</div>
+                <div class="ctype-item"         data-type="hollow"         onclick="setChartType('hollow','🕯','Hollow Candles',this)">    <span class="ctype-icon">🕯</span> Hollow Candles</div>
+                <div class="ctype-item"         data-type="bars"           onclick="setChartType('bars','⣿','Bars',this)">                <span class="ctype-icon">⣿</span> Bars</div>
+                <div class="ctype-item"         data-type="line"           onclick="setChartType('line','📈','Line',this)">               <span class="ctype-icon">📈</span> Line</div>
+                <div class="ctype-item"         data-type="line_markers"   onclick="setChartType('line_markers','⬤','Line + Markers',this)"><span class="ctype-icon">⬤</span> Line + Markers</div>
+                <div class="ctype-item"         data-type="step"           onclick="setChartType('step','⌐','Step Line',this)">           <span class="ctype-icon">⌐</span> Step Line</div>
+              </div>
+            </div>
           </div>
           <div class="chart-canvas-wrap" id="chartWrap">
             <div class="chart-loading" id="chartLoading">Loading chart…</div>
@@ -2361,6 +2397,42 @@ function loadChart(tabEl) {
 
 /* ── Fetch price history & draw chart ── */
 let _chartCandles = [];   // store for crosshair interaction
+let _chartType    = 'candles'; // current chart type
+
+function toggleChartTypeMenu() {
+  const menu = document.getElementById('chartTypeMenu');
+  if (!menu) return;
+  const isOpen = menu.style.display === 'block';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!e.target.closest('#chartTypeMenu') && !e.target.closest('#chartTypeBtn')) {
+          menu.style.display = 'none';
+        }
+        document.removeEventListener('click', close);
+      });
+    }, 0);
+  }
+}
+
+function setChartType(type, icon, name, el) {
+  _chartType = type;
+  document.getElementById('chartTypeIcon').textContent = icon;
+  document.getElementById('chartTypeName').textContent = name;
+  document.getElementById('chartTypeMenu').style.display = 'none';
+  // Update active state
+  document.querySelectorAll('.ctype-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  // Redraw
+  if (_chartCandles.length) {
+    const canvas = document.getElementById('sparkCanvas');
+    if (canvas) drawChart(canvas, _chartCandles, _currentChartRange || '1mo');
+  }
+}
+
+let _currentChartRange = '1mo';
 
 async function loadChartForSymbol(symbol, range) {
   const loading = document.getElementById('chartLoading');
@@ -2381,6 +2453,7 @@ async function loadChartForSymbol(symbol, range) {
     }
 
     _chartCandles = candles;
+    _currentChartRange = range;
     loading.style.display = 'none';
     canvas.style.display  = 'block';
     drawChart(canvas, candles, range);
@@ -2430,8 +2503,9 @@ function drawChart(canvas, candles, range) {
   const yPr   = v => priceY + priceH - ((v - prMin) / prRange) * priceH;
   const yVol  = v => volY + volH - (v / maxVol) * volH;
 
-  // Whether to use line mode (too many candles)
-  const lineMode = n > 80;
+  // Whether to use line mode (too many candles or user chose line type)
+  const forceLineType = ['line','line_markers','step'].includes(_chartType);
+  const lineMode = forceLineType || n > 80;
 
   // Background
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#0d1117';
@@ -2485,33 +2559,46 @@ function drawChart(canvas, candles, range) {
   ctx.stroke();
 
   if (lineMode) {
-    // ── Smooth line chart for many data points ──
+    // ── Line / Line+Markers / Step chart ──
     const first  = candles[0].c;
     const last   = candles[n-1].c;
     const isUp   = last >= first;
-    const lColor = isUp ? '#3fb950' : '#f85149';
+    const lColor = isUp ? '#10b981' : '#ef4444';
 
     // Gradient fill
     const grad = ctx.createLinearGradient(0, priceY, 0, priceY + priceH);
-    grad.addColorStop(0, isUp ? 'rgba(63,185,80,0.2)' : 'rgba(248,81,73,0.2)');
+    grad.addColorStop(0, isUp ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
 
+    // Build path
     ctx.beginPath();
     candles.forEach((c, i) => {
       const x = xOf(i), y = yPr(c.c);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      if (_chartType === 'step' && i > 0) {
+        // Step: go horizontal then vertical
+        ctx.lineTo(x, yPr(candles[i-1].c));
+        ctx.lineTo(x, y);
+      } else {
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
     });
+    // Fill area under line
     ctx.lineTo(xOf(n-1), priceY + priceH);
     ctx.lineTo(xOf(0),   priceY + priceH);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Line
+    // Draw line
     ctx.beginPath();
     candles.forEach((c, i) => {
       const x = xOf(i), y = yPr(c.c);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      if (_chartType === 'step' && i > 0) {
+        ctx.lineTo(x, yPr(candles[i-1].c));
+        ctx.lineTo(x, y);
+      } else {
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
     });
     ctx.strokeStyle = lColor;
     ctx.lineWidth   = 2;
@@ -2519,11 +2606,49 @@ function drawChart(canvas, candles, range) {
     ctx.lineCap     = 'round';
     ctx.stroke();
 
-  } else {
-    // ── Candlestick chart ──
+    // Markers for line_markers type
+    if (_chartType === 'line_markers') {
+      const step = Math.max(1, Math.floor(n / 40));
+      candles.forEach((c, i) => {
+        if (i % step !== 0) return;
+        const x = xOf(i), y = yPr(c.c);
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = lColor;
+        ctx.fill();
+      });
+    }
+
+  } else if (_chartType === 'bars') {
+    // ── OHLC Bar chart ──
     candles.forEach((c, i) => {
       const up  = c.c >= c.o;
-      const color = up ? '#3fb950' : '#f85149';
+      const color = up ? '#10b981' : '#ef4444';
+      const x   = xOf(i);
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = Math.max(1, cW * 0.3);
+      // Vertical line (high-low)
+      ctx.beginPath();
+      ctx.moveTo(x, yPr(c.h));
+      ctx.lineTo(x, yPr(c.l));
+      ctx.stroke();
+      // Open tick (left)
+      ctx.beginPath();
+      ctx.moveTo(x - cW, yPr(c.o));
+      ctx.lineTo(x,      yPr(c.o));
+      ctx.stroke();
+      // Close tick (right)
+      ctx.beginPath();
+      ctx.moveTo(x,      yPr(c.c));
+      ctx.lineTo(x + cW, yPr(c.c));
+      ctx.stroke();
+    });
+
+  } else {
+    // ── Candlestick chart (candles / hollow) ──
+    candles.forEach((c, i) => {
+      const up  = c.c >= c.o;
+      const color = up ? '#10b981' : '#ef4444';
       const x   = xOf(i);
       const top = yPr(Math.max(c.o, c.c));
       const bot = yPr(Math.min(c.o, c.c));
@@ -2537,17 +2662,28 @@ function drawChart(canvas, candles, range) {
       ctx.lineTo(x, yPr(c.l));
       ctx.stroke();
 
-      // Body
-      ctx.fillStyle = up ? color : color;
-      ctx.fillRect(x - cW / 2, top, cW, bH);
-
-      // Hollow candle for up days
-      if (up && cW > 4) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = 1;
-        ctx.strokeRect(x - cW / 2, top, cW, bH);
-        ctx.fillStyle = 'rgba(63,185,80,0.15)';
-        ctx.fillRect(x - cW / 2 + 1, top + 1, cW - 2, bH - 2);
+      if (_chartType === 'hollow') {
+        // Hollow candle: fill only bearish, outline only bullish
+        if (up) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth   = 1;
+          ctx.strokeRect(x - cW / 2, top, cW, bH);
+        } else {
+          ctx.fillStyle = color;
+          ctx.fillRect(x - cW / 2, top, cW, bH);
+        }
+      } else {
+        // Filled candle
+        ctx.fillStyle = color;
+        ctx.fillRect(x - cW / 2, top, cW, bH);
+        // Subtle outline on up candles
+        if (up && cW > 3) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x - cW / 2, top, cW, bH);
+          ctx.fillStyle = 'rgba(16,185,129,0.12)';
+          ctx.fillRect(x - cW / 2 + 1, top + 1, cW - 2, Math.max(1, bH - 2));
+        }
       }
     });
   }
@@ -2556,7 +2692,7 @@ function drawChart(canvas, candles, range) {
   const lastPrice = candles[n-1].c;
   const lastY = yPr(lastPrice);
   const lastUp = candles[n-1].c >= candles[n-1].o;
-  ctx.strokeStyle = lastUp ? '#3fb950' : '#f85149';
+  ctx.strokeStyle = lastUp ? '#10b981' : '#ef4444';
   ctx.lineWidth   = 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath(); ctx.moveTo(pad.left, lastY); ctx.lineTo(W - pad.right, lastY);
@@ -2564,7 +2700,7 @@ function drawChart(canvas, candles, range) {
 
   // Price label on right
   const lblW = 58, lblH = 18;
-  ctx.fillStyle = lastUp ? '#3fb950' : '#f85149';
+  ctx.fillStyle = lastUp ? '#10b981' : '#ef4444';
   ctx.fillRect(W - pad.right + 1, lastY - lblH/2, lblW, lblH);
   ctx.fillStyle   = '#fff';
   ctx.font        = 'bold 10px -apple-system, sans-serif';
