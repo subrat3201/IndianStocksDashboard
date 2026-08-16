@@ -1545,7 +1545,7 @@
       <div id="om-about" style="display:none">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">About</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px" id="om-tags"></div>
-          <div id="descText" style="font-size:13px;color:var(--text);line-height:1.7;max-height:110px;overflow:hidden;position:relative">
+          <div id="descText" style="font-size:13px;color:var(--text);line-height:1.7;max-height:180px;overflow:hidden;position:relative">
             <span id="om-desc-text"></span>
             <div id="descFade" style="position:absolute;bottom:0;left:0;right:0;height:36px;background:linear-gradient(transparent,var(--surface))"></div>
           </div>
@@ -2151,8 +2151,8 @@ function toggleDesc() {
   const btn  = document.getElementById('descToggle');
   if (!el) return;
   const expanded = el.style.maxHeight === 'none';
-  el.style.maxHeight = expanded ? '110px'   : 'none';
-  el.style.overflow  = expanded ? 'hidden'  : 'visible';
+  el.style.maxHeight = expanded ? '180px'  : 'none';
+  el.style.overflow  = expanded ? 'hidden' : 'visible';
   if (fade) fade.style.display = expanded ? '' : 'none';
   if (btn)  btn.textContent    = expanded ? 'Read more ▼' : 'Show less ▲';
 }
@@ -3636,6 +3636,7 @@ async function loadFinancials(symbol) {
       _screenerUrl: screenerData.url,
       // Use Screener about if Yahoo has none
       description: yahooData.description || screenerData.about || null,
+      descriptionHtml: screenerData.aboutHtml || null,
     };
 
     // Fill missing overview fields from Screener ratios
@@ -3727,7 +3728,7 @@ function renderFinancials(d) {
   // Show Screener link if available — removed per user request
 
   // About section
-  if (d.description || d.sector || d.industry) {
+  if (d.description || d.descriptionHtml || d.sector || d.industry) {
     const aboutEl = document.getElementById('om-about');
     if (aboutEl) {
       aboutEl.style.display = '';
@@ -3743,7 +3744,14 @@ function renderFinancials(d) {
         ].join('');
       }
       const descEl = document.getElementById('om-desc-text');
-      if (descEl && d.description) descEl.textContent = d.description;
+      if (descEl) {
+        if (d.descriptionHtml) {
+          // Rich HTML from Screener.in
+          descEl.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7">${d.descriptionHtml}</div>`;
+        } else if (d.description) {
+          descEl.textContent = d.description;
+        }
+      }
     }
   }
 
