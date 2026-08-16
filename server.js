@@ -608,71 +608,97 @@ app.get('/api/logo/:symbol', async (req, res) => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   API: /api/screener-quarters — quarterly results from Screener.in
+   API: /api/screener-quarters — quarterly results + shareholding from Screener.in
 ═══════════════════════════════════════════════════════════ */
 const _screenerCache = new Map();
 
-app.get('/api/screener-quarters', async (req, res) => {
-    const { symbol } = req.query;
-    if (!symbol) return res.status(400).json({ error: 'symbol required' });
-
-    const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
+async function scrapeScreener(base) {
     const cached = _screenerCache.get(base);
-    if (cached && Date.now() - cached.ts < 30 * 60 * 1000) return res.json(cached.data);
+    if (cached && Date.now() - cached.ts < 30 * 60 * 1000) return cached.data;
 
-    try {
-        const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-        // Step 1: search for company ID
-        const searchResp = await axios.get(
-            `https://www.screener.in/api/company/search/?q=${encodeURIComponent(base)}`,
-            { headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Referer': 'https://www.screener.in/' }, timeout: 8000 }
-        );
-        const results = searchResp.data || [];
-        if (!results.length) return res.status(404).json({ error: 'Company not found on Screener.in' });
+    // Step 1: search for company
+    const searchResp = await axios.get(
+        `https://www.screener.in/api/company/search/?q=${encodeURIComponent(base)}`,
+        { headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Referer': 'https://www.screener.in/' }, timeout: 8000 }
+    );
+    const results = searchResp.data || [];
+    if (!results.length) throw new Error('Company not found on Screener.in');
 
-        const company = results[0];
-        const companyUrl = `https://www.screener.in${company.url}`;
+    const company = results[0];
+    const companyUrl = `https://www.screener.in${company.url}`;
 
-        // Step 2: fetch company page
-        const pageResp = await axios.get(companyUrl, {
-            headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Referer': 'https://www.screener.in/' },
-            timeout: 12000,
-            responseType: 'text',
-        });
-        const html = pageResp.data;
+    // Step 2: fetch company page
+    const pageResp = await axios.get(companyUrl, {
+        headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Referer': 'https://www.screener.in/' },
+        timeout: 12000, responseType: 'text',
+    });
+    const html = pageResp.data;
 
-        // Step 3: parse quarterly section
-        const sectionMatch = html.match(/id="quarters"[\s\S]*?<\/section>/);
-        if (!sectionMatch) return res.status(404).json({ error: 'Quarterly section not found' });
-        const section = sectionMatch[0];
+    // ── Parse quarters section ──
+    const parseSection = (sectionId) => {
+        const m = html.match(new RegExp(`id="${sectionId}"[\\s\\S]*?</section>`));
+        return m ? m[0] : null;
+    };
 
-        // Extract quarter headers
+    const parseTable = (section) => {
+        if (!section) return { periods: [], rows: {} };
         const thMatches = [...section.matchAll(/<th[^>]*>(.*?)<\/th>/gs)];
         const periods = thMatches
             .map(m => m[1].replace(/<[^>]+>/g,'').trim())
             .filter(h => /\d{4}/.test(h));
-
-        // Extract rows
         const rowMatches = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)];
         const rows = {};
-        const rowNames = ['Sales', 'Expenses', 'Operating Profit', 'OPM %', 'Other Income', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit', 'EPS'];
-
         rowMatches.forEach(rm => {
             const cells = [...rm[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
                 .map(c => c[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').trim());
-            if (!cells.length) return;
-            const label = cells[0].replace(/[+\s]+$/,'').trim();
-            if (rowNames.some(n => label.includes(n))) {
-                rows[label] = cells.slice(1);
+            if (cells.length > 1) {
+                const label = cells[0].replace(/[+\s]+$/,'').trim();
+                if (label) rows[label] = cells.slice(1);
             }
         });
+        return { periods, rows };
+    };
 
-        const data = { company: company.name, url: companyUrl, periods, rows };
-        _screenerCache.set(base, { data, ts: Date.now() });
-        res.json(data);
+    const quartersSection     = parseSection('quarters');
+    const shareholdingSection = parseSection('shareholding');
+
+    const quarters     = parseTable(quartersSection);
+    const shareholding = parseTable(shareholdingSection);
+
+    const data = {
+        company: company.name,
+        url: companyUrl,
+        quarters,
+        shareholding,
+    };
+    _screenerCache.set(base, { data, ts: Date.now() });
+    return data;
+}
+
+app.get('/api/screener-quarters', async (req, res) => {
+    const { symbol } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
+    try {
+        const data = await scrapeScreener(base);
+        res.json({ company: data.company, url: data.url, ...data.quarters });
     } catch(e) {
         console.error('[Screener quarters]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/screener-shareholding', async (req, res) => {
+    const { symbol } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
+    try {
+        const data = await scrapeScreener(base);
+        res.json({ company: data.company, url: data.url, ...data.shareholding });
+    } catch(e) {
+        console.error('[Screener shareholding]', e.message);
         res.status(500).json({ error: e.message });
     }
 });

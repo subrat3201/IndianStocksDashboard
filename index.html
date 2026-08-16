@@ -3431,6 +3431,9 @@ function switchModalTab(name, btn) {
   if (name === 'quarterly' && _currentStock) {
     loadScreenerQuarters(_currentStock.symbol);
   }
+  if (name === 'shareholding' && _currentStock) {
+    loadScreenerShareholding(_currentStock.symbol);
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -4199,7 +4202,7 @@ function renderSectorHeatmap() {}
 
 
 /* ═══════════════════════════════════════════════
-   SCREENER.IN QUARTERLY DATA
+   SCREENER.IN QUARTERLY + SHAREHOLDING DATA
 ═══════════════════════════════════════════════ */
 const _screenerQCache = {};
 
@@ -4290,6 +4293,171 @@ function renderScreenerQuarters(data) {
     <div style="font-size:11px;color:var(--muted);margin-top:10px;padding:6px 10px;background:var(--surface2);border-radius:6px">
       📌 Source: <a href="${url}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in</a> · Values in ₹ Crores
     </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   SCREENER.IN SHAREHOLDING
+═══════════════════════════════════════════════ */
+const _screenerSHCache = {};
+
+async function loadScreenerShareholding(symbol) {
+  const el = document.getElementById('shareholdingContent');
+  if (!el) return;
+  const base = symbol.replace('.NS','').replace('.BO','');
+  if (_screenerSHCache[base]) { renderScreenerShareholding(_screenerSHCache[base]); return; }
+  el.innerHTML = '<div class="fin-loading"><div class="fin-spinner"></div><span>Fetching shareholding from Screener.in…</span></div>';
+  try {
+    const resp = await fetch('/api/screener-shareholding?symbol=' + encodeURIComponent(symbol));
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    _screenerSHCache[base] = data;
+    renderScreenerShareholding(data);
+  } catch(e) {
+    el.innerHTML = `<div class="fin-loading" style="color:var(--muted)">
+      <div style="font-size:24px;margin-bottom:8px">🏦</div>
+      <div>Could not load shareholding data</div>
+      <div style="font-size:11px;margin-top:6px">
+        Try <a href="https://www.screener.in/company/${base}/" target="_blank" style="color:var(--accent)">Screener.in ↗</a>
+      </div>
+    </div>`;
+  }
+}
+
+function renderScreenerShareholding(data) {
+  const el = document.getElementById('shareholdingContent');
+  if (!el || !data) return;
+  const { periods = [], rows = {}, url, company } = data;
+  if (!periods.length) {
+    el.innerHTML = '<div class="fin-loading" style="color:var(--muted)">No shareholding data found</div>';
+    return;
+  }
+
+  // Show last 8 quarters
+  const maxQ = Math.min(periods.length, 8);
+  const cols  = periods.slice(-maxQ);
+
+  // Key holders to display
+  const holderDefs = [
+    { key: 'Promoters',   color: '#3b82f6', label: '👤 Promoters' },
+    { key: 'FIIs',        color: '#10b981', label: '🌍 FII / FPI' },
+    { key: 'DIIs',        color: '#f59e0b', label: '🏦 DII' },
+    { key: 'Government',  color: '#8b5cf6', label: '🏛 Government' },
+    { key: 'Public',      color: '#64748b', label: '👥 Public' },
+  ];
+
+  // Latest quarter values for the donut
+  const latestIdx = periods.indexOf(cols[cols.length - 1]);
+  const latestVals = holderDefs.map(h => {
+    const rowKey = Object.keys(rows).find(k => k.includes(h.key));
+    const raw = rowKey ? (rows[rowKey]?.[latestIdx] ?? '0') : '0';
+    return { ...h, pct: parseFloat(raw.replace('%','')) || 0, raw };
+  }).filter(h => h.pct > 0);
+
+  const total = latestVals.reduce((s,h) => s + h.pct, 0);
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;font-weight:700">🏦 Shareholding Pattern</div>
+      <a href="${url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:20px">View on Screener.in ↗</a>
+    </div>
+
+    <!-- Latest quarter summary with donut -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;margin-bottom:20px">
+      <div style="position:relative;flex-shrink:0">
+        <canvas id="shCanvas" width="160" height="160"></canvas>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+          <div style="font-size:16px;font-weight:800;color:var(--text)">${latestVals.find(h=>h.key==='Promoters')?.pct.toFixed(1) ?? '—'}%</div>
+          <div style="font-size:10px;color:var(--muted)">Promoter</div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:180px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">${cols[cols.length-1]} — Latest</div>
+        ${latestVals.map(h => `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-size:13px;color:var(--text)">${h.label}</span>
+              <span style="font-size:14px;font-weight:800;color:${h.color}">${h.pct.toFixed(2)}%</span>
+            </div>
+            <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,(h.pct/Math.max(total,100))*100).toFixed(1)}%;background:${h.color};border-radius:3px;transition:width .5s"></div>
+            </div>
+          </div>`).join('')}
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">
+          📌 Source: <a href="${url}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trend table -->
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Trend — Last ${maxQ} Quarters</div>
+    <div style="overflow-x:auto">
+    <table class="qr-table">
+      <thead><tr>
+        <th style="min-width:130px;text-align:left">Holder</th>
+        ${cols.map(p => `<th style="min-width:80px">${p}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${holderDefs.map(h => {
+          const rowKey = Object.keys(rows).find(k => k.includes(h.key));
+          if (!rowKey) return '';
+          const vals = rows[rowKey];
+          return `<tr>
+            <td style="text-align:left">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:10px;height:10px;border-radius:50%;background:${h.color};flex-shrink:0"></div>
+                <span style="font-weight:600">${h.label}</span>
+              </div>
+            </td>
+            ${cols.map((p,i) => {
+              const idx = periods.indexOf(p);
+              const val = vals?.[idx] ?? '—';
+              const num = parseFloat(val.replace('%','')) || 0;
+              const prevIdx = i > 0 ? periods.indexOf(cols[i-1]) : -1;
+              const prevNum = prevIdx >= 0 ? (parseFloat((vals?.[prevIdx]??'0').replace('%','')) || 0) : null;
+              let trend = '';
+              if (prevNum !== null) {
+                const diff = (num - prevNum).toFixed(2);
+                if (Math.abs(diff) >= 0.01) {
+                  const up = diff > 0;
+                  trend = `<span style="font-size:9px;color:${up?'var(--green)':'var(--red)'};margin-left:3px">${up?'▲':'▼'}${Math.abs(diff)}%</span>`;
+                }
+              }
+              return `<td style="font-weight:${i===cols.length-1?'700':'400'};color:${i===cols.length-1?h.color:'var(--text)'}">${val}${trend}</td>`;
+            }).join('')}
+          </tr>`;
+        }).filter(Boolean).join('')}
+        ${rows['No. of Shareholders'] ? `<tr>
+          <td style="text-align:left;color:var(--muted);font-size:12px">👥 No. of Shareholders</td>
+          ${cols.map(p => {
+            const idx = periods.indexOf(p);
+            return `<td style="color:var(--muted);font-size:12px">${rows['No. of Shareholders']?.[idx] ?? '—'}</td>`;
+          }).join('')}
+        </tr>` : ''}
+      </tbody>
+    </table>
+    </div>
+  `;
+
+  // Draw donut
+  setTimeout(() => {
+    const canvas = document.getElementById('shCanvas');
+    if (!canvas || !latestVals.length) return;
+    const ctx = canvas.getContext('2d');
+    const cx=80, cy=80, r=68, r2=46;
+    ctx.clearRect(0,0,160,160);
+    let angle = -Math.PI/2;
+    const t = latestVals.reduce((s,h)=>s+h.pct,0);
+    latestVals.forEach(h => {
+      const slice=(h.pct/t)*2*Math.PI;
+      ctx.beginPath(); ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,r,angle,angle+slice);
+      ctx.closePath(); ctx.fillStyle=h.color; ctx.fill();
+      angle+=slice;
+    });
+    ctx.beginPath(); ctx.arc(cx,cy,r2,0,2*Math.PI);
+    ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--surface').trim()||'#111827';
+    ctx.fill();
+  }, 60);
 }
 
 /* ═══════════════════════════════════════════════
