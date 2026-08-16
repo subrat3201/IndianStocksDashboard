@@ -1922,27 +1922,32 @@ async function loadAll() {
 
     setProgress(35);
 
-    // Step 2: fetch live prices — limit to top 500 stocks to avoid overloading
-    const symbols = metaList.slice(0, 500).map(m => m.s);
-    const CHUNK   = 30;
-    const CONCURRENCY = 5;  // max parallel requests at once
-    const chunks  = [];
-    for (let i = 0; i < symbols.length; i += CHUNK)
-      chunks.push(symbols.slice(i, i + CHUNK));
+    // Step 2: fetch live prices for first 150 stocks immediately (fast initial load)
+    // then load more in background
+    const INITIAL = 150;
+    const symbols = metaList.map(m => m.s);
+    const initSymbols = symbols.slice(0, INITIAL);
+    const CHUNK = 30;
 
-    // Fire in controlled concurrency batches
-    const rawResults = [];
-    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
-      const batch = chunks.slice(i, i + CONCURRENCY);
-      const settled = await Promise.allSettled(batch.map(c => fetchBatch(c)));
-      settled.forEach(r => { if (r.status === 'fulfilled') rawResults.push(...r.value); });
-      setProgress(35 + Math.round(((i + CONCURRENCY) / chunks.length) * 55));
-    }
+    const fetchChunked = async (syms) => {
+      const chunks = [];
+      for (let i = 0; i < syms.length; i += CHUNK)
+        chunks.push(syms.slice(i, i + CHUNK));
+      const results = [];
+      for (let i = 0; i < chunks.length; i += 3) {
+        const batch = chunks.slice(i, i + 3);
+        const settled = await Promise.allSettled(batch.map(c => fetchBatch(c)));
+        settled.forEach(r => { if (r.status === 'fulfilled') results.push(...r.value); });
+        setProgress(35 + Math.round(((i + 3) / chunks.length) * 50));
+      }
+      return results;
+    };
 
-    setProgress(90);
+    // Load initial batch
+    const initResults = await fetchChunked(initSymbols);
+    setProgress(88);
 
-    // Map results back with metadata
-    allData = rawResults.map(q => {
+    allData = initResults.map(q => {
       const meta = metaList.find(m => m.s === q.symbol) || {};
       const prev = q.prevClose || q.price;
       return {
@@ -1963,6 +1968,33 @@ async function loadAll() {
     if (watchlistVisible) renderWatchlist();
     if (heatmapVisible)   renderHeatmap();
     checkAlerts();
+
+    // Background: load remaining stocks silently and merge
+    const remaining = symbols.slice(INITIAL);
+    if (remaining.length > 0) {
+      fetchChunked(remaining).then(moreResults => {
+        const more = moreResults.map(q => {
+          const meta = metaList.find(m => m.s === q.symbol) || {};
+          const prev = q.prevClose || q.price;
+          return {
+            symbol:    q.symbol,
+            name:      meta.n || q.symbol.replace('.NS','').replace('.BO',''),
+            exchange:  meta.ex || (q.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
+            price:     q.price,
+            prevClose: prev,
+            changeP:   prev ? ((q.price - prev) / prev * 100) : 0,
+            high52:    q.high52,
+            low52:     q.low52,
+          };
+        }).filter(d => d.price != null);
+        allData = [...allData, ...more];
+        updateTime();
+        renderAll();
+        if (watchlistVisible) renderWatchlist();
+        if (heatmapVisible)   renderHeatmap();
+        checkAlerts();
+      }).catch(() => {});
+    }
   } catch(e) {
     console.error(e);
     setError('Could not load data. Make sure the server is running: <code>node server.js</code>');
