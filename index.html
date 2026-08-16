@@ -4378,22 +4378,18 @@ function renderScreenerShareholding(data) {
     return;
   }
 
-  // Deduplicate periods — keep only first occurrence of each period label
-  // and only quarterly periods (e.g. "Jun 2026", not annual Mar)
-  const seen = new Set();
-  const cleanPeriods = [];
-  const idxMap = {}; // cleanPeriod -> original index
-  periods.forEach((p, i) => {
-    if (!seen.has(p)) {
-      seen.add(p);
-      cleanPeriods.push(p);
-      idxMap[p] = i;
-    }
-  });
+  // Find max row length — Screener returns quarterly + annual merged
+  // Only keep periods that have actual data (up to max row values count)
+  const maxRowLen = Math.max(...Object.values(rows).map(v => v.length), 0);
+  // Take only the first maxRowLen periods (these are the quarterly ones)
+  const validPeriods = periods.slice(0, maxRowLen);
 
-  // Show last 8 unique quarters
-  const maxQ = Math.min(cleanPeriods.length, 8);
-  const cols  = cleanPeriods.slice(-maxQ);
+  // Show last 8 quarters
+  const maxQ = Math.min(validPeriods.length, 8);
+  const cols  = validPeriods.slice(-maxQ);
+  // idxMap: period label -> its index in the original validPeriods array
+  const idxMap = {};
+  validPeriods.forEach((p, i) => { idxMap[p] = i; });
 
   // Key holders to display
   const holderDefs = [
@@ -4405,8 +4401,7 @@ function renderScreenerShareholding(data) {
   ];
 
   // Latest quarter values for the donut
-  const latestPeriod = cols[cols.length - 1];
-  const latestIdx = idxMap[latestPeriod] ?? 0;
+  const latestIdx = validPeriods.indexOf(cols[cols.length - 1]);
   const latestVals = holderDefs.map(h => {
     const rowKey = Object.keys(rows).find(k => k.includes(h.key));
     const raw = rowKey ? (rows[rowKey]?.[latestIdx] ?? '0') : '0';
@@ -4469,11 +4464,11 @@ function renderScreenerShareholding(data) {
               </div>
             </td>
             ${cols.map((p,i) => {
-              const idx = idxMap[p] ?? 0;
+              const idx = validPeriods.indexOf(p);
               const val = vals?.[idx] ?? '—';
               const num = parseFloat(val.replace('%','')) || 0;
               const prevP = i > 0 ? cols[i-1] : null;
-              const prevIdx = prevP ? (idxMap[prevP] ?? -1) : -1;
+              const prevIdx = prevP ? validPeriods.indexOf(prevP) : -1;
               const prevNum = prevIdx >= 0 ? (parseFloat((vals?.[prevIdx]??'0').replace('%','')) || 0) : null;
               let trend = '';
               if (prevNum !== null) {
@@ -4490,7 +4485,7 @@ function renderScreenerShareholding(data) {
         ${rows['No. of Shareholders'] ? `<tr>
           <td style="text-align:left;color:var(--muted);font-size:12px">👥 No. of Shareholders</td>
           ${cols.map(p => {
-            const idx = idxMap[p] ?? 0;
+            const idx = validPeriods.indexOf(p);
             return `<td style="color:var(--muted);font-size:12px">${rows['No. of Shareholders']?.[idx] ?? '—'}</td>`;
           }).join('')}
         </tr>` : ''}
