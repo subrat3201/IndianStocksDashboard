@@ -900,6 +900,17 @@
     <h1>Indian Stock Market Dashboard <span style="font-size:13px;font-weight:500;color:var(--muted)">by <span style="color:var(--accent)">Subrat</span></span></h1>
   </div>
   <div class="header-right">
+    <!-- Live IST Clock -->
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div id="liveClock" style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:.5px;font-variant-numeric:tabular-nums;">--:--:--</div>
+      <div id="liveDate" style="font-size:11px;color:var(--muted);"></div>
+    </div>
+    <!-- GIFT Nifty -->
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-width:110px;">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">GIFT Nifty</div>
+      <div id="giftPrice" style="font-size:15px;font-weight:800;color:var(--text);">—</div>
+      <div id="giftChg" style="font-size:11px;font-weight:600;color:var(--muted);">—</div>
+    </div>
     <div class="market-status">
       <div class="dot" id="mDot"></div>
       <span id="mText" style="color:var(--muted)">Checking…</span>
@@ -1597,6 +1608,43 @@ async function fetchAll(metaList) {
       low52:     q.low52,
     };
   }).filter(d => d.price != null);
+}
+
+/* ═══════════════════════════════════════════════
+   LIVE IST CLOCK
+═══════════════════════════════════════════════ */
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const hh  = String(ist.getHours()).padStart(2,'0');
+    const mm  = String(ist.getMinutes()).padStart(2,'0');
+    const ss  = String(ist.getSeconds()).padStart(2,'0');
+    const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateStr = `${days[ist.getDay()]}, ${ist.getDate()} ${months[ist.getMonth()]} ${ist.getFullYear()} IST`;
+    document.getElementById('liveClock').textContent = `${hh}:${mm}:${ss}`;
+    document.getElementById('liveDate').textContent  = dateStr;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ═══════════════════════════════════════════════
+   GIFT NIFTY
+═══════════════════════════════════════════════ */
+async function loadGiftNifty() {
+  try {
+    const resp = await fetch('/api/stocks?symbols=^NSESGX');
+    const data = await resp.json();
+    const q = data?.results?.[0];
+    if (!q) return;
+    const chg  = q.changeP != null ? (q.changeP >= 0 ? '+' : '') + q.changeP.toFixed(2) + '%' : '—';
+    const color = q.changeP >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('giftPrice').textContent = q.price ? '₹' + q.price.toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
+    document.getElementById('giftChg').textContent   = chg;
+    document.getElementById('giftChg').style.color   = color;
+  } catch(e) { /* silent */ }
 }
 
 /* ═══════════════════════════════════════════════
@@ -4051,6 +4099,9 @@ function renderSectorHeatmap() {}
 ═══════════════════════════════════════════════ */
 setMarketStatus();
 loadAll();
+startClock();
+loadGiftNifty();
+setInterval(loadGiftNifty, 60000);
 autoTimer = setInterval(loadAll, 60000);
 initWishlistUI();
 updateAlertBadge();
