@@ -667,6 +667,13 @@ async function scrapeScreener(base) {
     const quarters     = parseTable(quartersSection);
     const shareholding = parseTable(shareholdingSection);
 
+    // ── Parse About / description ──
+    let about = '';
+    const profileMatch = html.match(/company-profile[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/);
+    if (profileMatch) {
+        about = profileMatch[1].replace(/<[^>]+>/g,'').replace(/\[\d+\]/g,'').trim();
+    }
+
     // ── Parse key ratios from top-ratios ──
     const ratios = {};
     const ratioSection = html.match(/id="top-ratios"[\s\S]*?<\/ul>/);
@@ -686,6 +693,7 @@ async function scrapeScreener(base) {
     const data = {
         company: company.name,
         url: companyUrl,
+        about,
         quarters,
         shareholding,
         ratios,
@@ -726,7 +734,7 @@ app.get('/api/screener-ratios', async (req, res) => {
     const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
     try {
         const data = await scrapeScreener(base);
-        res.json({ company: data.company, url: data.url, ratios: data.ratios || {} });
+        res.json({ company: data.company, url: data.url, about: data.about || '', ratios: data.ratios || {} });
     } catch(e) {
         console.error('[Screener ratios]', e.message);
         res.status(500).json({ error: e.message });

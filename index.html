@@ -3480,6 +3480,8 @@ async function loadFinancials(symbol) {
       ...yahooData,
       _screenerRatios: ratios,
       _screenerUrl: screenerData.url,
+      // Use Screener about if Yahoo has none
+      description: yahooData.description || screenerData.about || null,
     };
 
     // Fill missing overview fields from Screener ratios
@@ -3555,7 +3557,7 @@ function renderFinancials(d) {
   const r = d._screenerRatios || {};
   const screenerUrl = d._screenerUrl || '';
 
-  setOM('om-mktcap', d.marketCap   || (r['Market Cap']   ? r['Market Cap'] + ' Cr' : '—'));
+  setOM('om-mktcap', d.marketCap   || (r['Market Cap']   ? '₹' + r['Market Cap'] + ' Cr' : '—'));
   setOM('om-pe',     d.trailingPE  || r['Stock P/E']     || '—');
   setOM('om-bv',     d.bookValue   ? '₹' + fmtFin(d.bookValue) : (r['Book Value'] ? '₹' + r['Book Value'] : '—'));
   setOM('om-dy',     d.dividendYield || (r['Dividend Yield'] ? r['Dividend Yield'] + '%' : '—'), (d.dividendYield || r['Dividend Yield']) ? 'up' : '');
@@ -4376,9 +4378,22 @@ function renderScreenerShareholding(data) {
     return;
   }
 
-  // Show last 8 quarters
-  const maxQ = Math.min(periods.length, 8);
-  const cols  = periods.slice(-maxQ);
+  // Deduplicate periods — keep only first occurrence of each period label
+  // and only quarterly periods (e.g. "Jun 2026", not annual Mar)
+  const seen = new Set();
+  const cleanPeriods = [];
+  const idxMap = {}; // cleanPeriod -> original index
+  periods.forEach((p, i) => {
+    if (!seen.has(p)) {
+      seen.add(p);
+      cleanPeriods.push(p);
+      idxMap[p] = i;
+    }
+  });
+
+  // Show last 8 unique quarters
+  const maxQ = Math.min(cleanPeriods.length, 8);
+  const cols  = cleanPeriods.slice(-maxQ);
 
   // Key holders to display
   const holderDefs = [
@@ -4390,7 +4405,8 @@ function renderScreenerShareholding(data) {
   ];
 
   // Latest quarter values for the donut
-  const latestIdx = periods.indexOf(cols[cols.length - 1]);
+  const latestPeriod = cols[cols.length - 1];
+  const latestIdx = idxMap[latestPeriod] ?? 0;
   const latestVals = holderDefs.map(h => {
     const rowKey = Object.keys(rows).find(k => k.includes(h.key));
     const raw = rowKey ? (rows[rowKey]?.[latestIdx] ?? '0') : '0';
@@ -4453,10 +4469,11 @@ function renderScreenerShareholding(data) {
               </div>
             </td>
             ${cols.map((p,i) => {
-              const idx = periods.indexOf(p);
+              const idx = idxMap[p] ?? 0;
               const val = vals?.[idx] ?? '—';
               const num = parseFloat(val.replace('%','')) || 0;
-              const prevIdx = i > 0 ? periods.indexOf(cols[i-1]) : -1;
+              const prevP = i > 0 ? cols[i-1] : null;
+              const prevIdx = prevP ? (idxMap[prevP] ?? -1) : -1;
               const prevNum = prevIdx >= 0 ? (parseFloat((vals?.[prevIdx]??'0').replace('%','')) || 0) : null;
               let trend = '';
               if (prevNum !== null) {
@@ -4473,7 +4490,7 @@ function renderScreenerShareholding(data) {
         ${rows['No. of Shareholders'] ? `<tr>
           <td style="text-align:left;color:var(--muted);font-size:12px">👥 No. of Shareholders</td>
           ${cols.map(p => {
-            const idx = periods.indexOf(p);
+            const idx = idxMap[p] ?? 0;
             return `<td style="color:var(--muted);font-size:12px">${rows['No. of Shareholders']?.[idx] ?? '—'}</td>`;
           }).join('')}
         </tr>` : ''}
