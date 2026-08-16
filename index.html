@@ -3570,17 +3570,7 @@ function renderFinancials(d) {
 
   document.getElementById('om-loading').style.display = 'none';
 
-  // Show Screener link if available
-  if (screenerUrl) {
-    let linkEl = document.getElementById('om-screener-link');
-    if (!linkEl) {
-      linkEl = document.createElement('div');
-      linkEl.id = 'om-screener-link';
-      linkEl.style.cssText = 'margin-top:8px;font-size:11px;color:var(--muted)';
-      document.getElementById('overviewMetrics')?.appendChild(linkEl);
-    }
-    linkEl.innerHTML = `📌 Key ratios from <a href="${screenerUrl}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in ↗</a>`;
-  }
+  // Show Screener link if available — removed per user request
 
   // About section
   if (d.description || d.sector || d.industry) {
@@ -4305,7 +4295,6 @@ function renderScreenerQuarters(data) {
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px;font-weight:700">📅 Quarterly Results — Last ${maxQ} Quarters</div>
-      <a href="${url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:20px">View on Screener.in ↗</a>
     </div>
     <div style="overflow-x:auto">
     <table class="qr-table">
@@ -4337,7 +4326,7 @@ function renderScreenerQuarters(data) {
     </table>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:10px;padding:6px 10px;background:var(--surface2);border-radius:6px">
-      📌 Source: <a href="${url}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in</a> · Values in ₹ Crores
+      Values in ₹ Crores
     </div>`;
 }
 
@@ -4413,7 +4402,6 @@ function renderScreenerShareholding(data) {
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px;font-weight:700">🏦 Shareholding Pattern</div>
-      <a href="${url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:20px">View on Screener.in ↗</a>
     </div>
 
     <!-- Latest quarter summary with donut -->
@@ -4437,9 +4425,6 @@ function renderScreenerShareholding(data) {
               <div style="height:100%;width:${Math.min(100,(h.pct/Math.max(total,100))*100).toFixed(1)}%;background:${h.color};border-radius:3px;transition:width .5s"></div>
             </div>
           </div>`).join('')}
-        <div style="font-size:10px;color:var(--muted);margin-top:4px">
-          📌 Source: <a href="${url}" target="_blank" style="color:var(--accent);text-decoration:none">Screener.in</a>
-        </div>
       </div>
     </div>
 
