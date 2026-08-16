@@ -667,28 +667,11 @@ async function scrapeScreener(base) {
     const quarters     = parseTable(quartersSection);
     const shareholding = parseTable(shareholdingSection);
 
-    // ── Parse About / description — full rich content ──
+    // ── Parse About / description ──
     let about = '';
-    let aboutHtml = '';
-    const profileMatch = html.match(/class="company-profile"([\s\S]*?)<\/section>/);
+    const profileMatch = html.match(/company-profile[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/);
     if (profileMatch) {
-        let sec = profileMatch[1];
-        // Remove [edit] links and footnote numbers
-        sec = sec.replace(/<a[^>]*>\s*\[edit\]\s*<\/a>/gi, '');
-        sec = sec.replace(/\[\d+\]/g, '');
-        // Convert headings
-        sec = sec.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '<strong style="display:block;margin:12px 0 4px;font-size:13px;color:#e2e8f0">$1</strong>');
-        sec = sec.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '<span style="display:block;margin:8px 0 3px;font-size:12px;font-weight:700;color:#94a3b8">$1</span>');
-        // Convert lists
-        sec = sec.replace(/<ul[^>]*>/gi,'<div style="padding-left:12px">');
-        sec = sec.replace(/<\/ul>/gi,'</div>');
-        sec = sec.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi,'<div style="margin:3px 0">• $1</div>');
-        // Clean remaining tags except basic ones
-        sec = sec.replace(/<(?!\/?(?:strong|span|div|b|a|br)[^>]*>)[^>]+>/gi, '');
-        sec = sec.replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'");
-        aboutHtml = sec.trim();
-        // Plain text fallback (first paragraph only)
-        about = aboutHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,300);
+        about = profileMatch[1].replace(/<[^>]+>/g,'').replace(/\[\d+\]/g,'').trim();
     }
 
     // ── Parse key ratios from top-ratios ──
@@ -711,7 +694,6 @@ async function scrapeScreener(base) {
         company: company.name,
         url: companyUrl,
         about,
-        aboutHtml,
         quarters,
         shareholding,
         ratios,
@@ -752,7 +734,7 @@ app.get('/api/screener-ratios', async (req, res) => {
     const base = symbol.replace('.NS','').replace('.BO','').toUpperCase();
     try {
         const data = await scrapeScreener(base);
-        res.json({ company: data.company, url: data.url, about: data.about || '', aboutHtml: data.aboutHtml || '', ratios: data.ratios || {} });
+        res.json({ company: data.company, url: data.url, about: data.about || '', ratios: data.ratios || {} });
     } catch(e) {
         console.error('[Screener ratios]', e.message);
         res.status(500).json({ error: e.message });
