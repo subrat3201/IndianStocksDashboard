@@ -1728,21 +1728,57 @@ async function loadAll() {
   setProgress(5);
 
   try {
-    setProgress(15);
-    // Indices load fire-and-forget
+    setProgress(10);
+    // Indices fire-and-forget
     fetch('/api/indices').then(r => r.json()).then(j => renderIndices(j.results || [])).catch(()=>{});
 
-    setProgress(30);
-    // NSE + BSE fire in parallel — each is a single server request
-    const [nse, bse] = await Promise.all([fetchAll(NSE), fetchAll(BSE)]);
-    setProgress(85);
-    allData = [...nse, ...bse];
+    // Step 1: get full NSE stock list (~2400 stocks)
+    setProgress(20);
+    let metaList = [...NSE, ...BSE];  // fallback to hardcoded if API fails
+    try {
+      const listResp = await fetch('/api/stock-list');
+      const listJson = await listResp.json();
+      if (listJson.stocks && listJson.stocks.length > 0) {
+        metaList = listJson.stocks.map(s => ({ s: s.symbol, n: s.name, ex: s.exchange }));
+      }
+    } catch(e) { console.warn('Stock list fetch failed, using defaults', e); }
+
+    setProgress(35);
+
+    // Step 2: fetch live prices in parallel chunks of 50
+    const symbols = metaList.map(m => m.s);
+    const CHUNK   = 50;
+    const chunks  = [];
+    for (let i = 0; i < symbols.length; i += CHUNK)
+      chunks.push(symbols.slice(i, i + CHUNK));
+
+    // Fire all chunks in parallel
+    const settled = await Promise.allSettled(chunks.map(c => fetchBatch(c)));
+    const rawResults = [];
+    settled.forEach(r => { if (r.status === 'fulfilled') rawResults.push(...r.value); });
+
+    setProgress(90);
+
+    // Map results back with metadata
+    allData = rawResults.map(q => {
+      const meta = metaList.find(m => m.s === q.symbol) || {};
+      const prev = q.prevClose || q.price;
+      return {
+        symbol:    q.symbol,
+        name:      meta.n || q.symbol.replace('.NS','').replace('.BO',''),
+        exchange:  meta.ex || (q.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
+        price:     q.price,
+        prevClose: prev,
+        changeP:   prev ? ((q.price - prev) / prev * 100) : 0,
+        high52:    q.high52,
+        low52:     q.low52,
+      };
+    }).filter(d => d.price != null);
 
     setProgress(100);
     updateTime();
     renderAll();
     if (watchlistVisible) renderWatchlist();
-    // NOTE: screener intentionally NOT auto-refreshed — it's a manual 30-60s scan
     if (heatmapVisible)   renderHeatmap();
     checkAlerts();
   } catch(e) {
@@ -1807,18 +1843,18 @@ function renderAll() {
   if (searchBanner) searchBanner.style.display = 'none';
 
   const sorted  = [...list].sort((a,b) => b.changeP - a.changeP);
-  const gainers = sorted.filter(d => d.changeP > 0).slice(0,15);
-  const losers  = sorted.filter(d => d.changeP < 0).reverse().slice(0,15);
+  const gainers = sorted.filter(d => d.changeP > 0).slice(0,25);
+  const losers  = sorted.filter(d => d.changeP < 0).reverse().slice(0,25);
 
   const near52H = [...list]
     .filter(d => d.high52)
     .map(d => ({...d, proxH: (d.price / d.high52) * 100 }))
-    .sort((a,b) => b.proxH - a.proxH).slice(0,15);
+    .sort((a,b) => b.proxH - a.proxH).slice(0,25);
 
   const near52L = [...list]
     .filter(d => d.low52)
     .map(d => ({...d, proxL: ((d.price / d.low52) - 1) * 100 }))
-    .sort((a,b) => a.proxL - b.proxL).slice(0,15);
+    .sort((a,b) => a.proxL - b.proxL).slice(0,25);
 
   document.getElementById('gcnt').textContent  = gainers.length;
   document.getElementById('lcnt').textContent  = losers.length;
